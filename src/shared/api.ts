@@ -649,7 +649,7 @@ export const deepSeekModels = {
 		contextWindow: 64_000,
 		supportsImages: false,
 		supportsPromptCache: true,
-		inputPrice: 0.27,
+		inputPrice: 0, // Deepseek API categorizes all input as either a cache hit or a cache miss so the input price variable is zero to avoid double counting
 		outputPrice: 1.1,
 		cacheWritesPrice: 0.27,
 		cacheReadsPrice: 0.07,
@@ -659,7 +659,7 @@ export const deepSeekModels = {
 		contextWindow: 64_000,
 		supportsImages: false,
 		supportsPromptCache: true,
-		inputPrice: 0.55,
+		inputPrice: 0,
 		outputPrice: 2.19,
 		cacheWritesPrice: 0.55,
 		cacheReadsPrice: 0.14,

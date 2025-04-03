@@ -35,15 +35,15 @@ export class DeepSeekHandler implements ApiHandler {
 			prompt_cache_miss_tokens?: number
 		}
 		const deepUsage = usage as DeepSeekUsage
-
-		const promptTokens = deepUsage?.prompt_tokens || 0
+		const totalPromptTokens = deepUsage?.prompt_tokens || 0
 		const outputTokens = deepUsage?.completion_tokens || 0
 		const cacheReadTokens = deepUsage?.prompt_cache_hit_tokens || 0
 		const cacheWriteTokens = deepUsage?.prompt_cache_miss_tokens || 0
-		const totalCost = calculateApiCostOpenAI(info, promptTokens, outputTokens, cacheWriteTokens, cacheReadTokens)
+		const newInputTokens = totalPromptTokens - cacheReadTokens // Fix: Subtract cache hits from total prompt tokens to show only net new tokens. Without this, total token count calculations would double count the cached tokens.
+		const totalCost = calculateApiCostOpenAI(info, totalPromptTokens, outputTokens, cacheWriteTokens, cacheReadTokens)
 		yield {
 			type: "usage",
-			inputTokens: promptTokens - cacheReadTokens, // Fix: Subtract cache hits from total prompt tokens to show only net new tokens. Without this, total token count calculations would double count the cached tokens.
+			inputTokens: newInputTokens,
 			outputTokens: outputTokens,
 			cacheWriteTokens: cacheWriteTokens,
 			cacheReadTokens: cacheReadTokens,

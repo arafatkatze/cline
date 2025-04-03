@@ -38,7 +38,7 @@ export function calculateApiCostOpenAI(
 ): number {
 	const cacheCreationInputTokensNum = cacheCreationInputTokens || 0
 	const cacheReadInputTokensNum = cacheReadInputTokens || 0
-	const nonCachedInputTokens = Math.max(0, inputTokens - cacheCreationInputTokensNum - cacheReadInputTokensNum)
+	const nonCachedInputTokens = Math.max(0, inputTokens - cacheCreationInputTokensNum)
 	return calculateApiCostInternal(
 		modelInfo,
 		nonCachedInputTokens,
