@@ -43,7 +43,7 @@ export class DeepSeekHandler implements ApiHandler {
 		const totalCost = calculateApiCostOpenAI(info, promptTokens, outputTokens, cacheWriteTokens, cacheReadTokens)
 		yield {
 			type: "usage",
-			inputTokens: promptTokens-cacheReadTokens,
+			inputTokens: promptTokens - cacheReadTokens, // Fix: Subtract cache hits from total prompt tokens to show only net new tokens. Without this, total token count calculations would double count the cached tokens.
 			outputTokens: outputTokens,
 			cacheWriteTokens: cacheWriteTokens,
 			cacheReadTokens: cacheReadTokens,
