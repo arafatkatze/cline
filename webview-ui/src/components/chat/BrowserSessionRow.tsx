@@ -5,12 +5,13 @@ import { useSize } from "react-use"
 import styled from "styled-components"
 import { BROWSER_VIEWPORT_PRESETS } from "@shared/BrowserSettings"
 import { BrowserAction, BrowserActionResult, ClineMessage, ClineSayBrowserAction } from "@shared/ExtensionMessage"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { vscode } from "@/utils/vscode"
-import { BrowserSettingsMenu } from "@/components/browser/BrowserSettingsMenu"
-import { CheckpointControls } from "@/components/common/CheckpointControls"
-import CodeBlock, { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
-import { ChatRowContent, ProgressIndicator } from "@/components/chat/ChatRow"
+import { useExtensionState } from "../../context/ExtensionStateContext" // Fixed path
+import { vscode } from "../../utils/vscode" // Fixed path
+import { useBrowserSessionPages } from "../../hooks/useBrowserSessionPages" // Fixed path
+import { BrowserSettingsMenu } from "../browser/BrowserSettingsMenu" // Fixed path
+import { CheckpointControls } from "../common/CheckpointControls" // Fixed path
+import CodeBlock, { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock" // Fixed path
+import { ChatRowContent, ProgressIndicator } from "./ChatRow" // Fixed path
 
 interface BrowserSessionRowProps {
 	messages: ClineMessage[]
@@ -115,6 +116,10 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 	const [maxActionHeight, setMaxActionHeight] = useState(0)
 	const [consoleLogsExpanded, setConsoleLogsExpanded] = useState(false)
 
+	// Use the custom hook to manage pages and state
+	const { pages, currentPageIndex, setCurrentPageIndex, currentPage, isLastPage, displayState, initialUrl } =
+		useBrowserSessionPages({ messages, browserSettings })
+
 	const isLastApiReqInterrupted = useMemo(() => {
 		// Check if last api_req_started is cancelled
 		const lastApiReqStarted = [...messages].reverse().find((m) => m.say === "api_req_started")
@@ -132,98 +137,9 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 	}, [messages, lastModifiedMessage, isLast])
 
 	const isBrowsing = useMemo(() => {
-		return isLast && messages.some((m) => m.say === "browser_action_result") && !isLastApiReqInterrupted // after user approves, browser_action_result with "" is sent to indicate that the session has started
-	}, [isLast, messages, isLastApiReqInterrupted])
-
-	// Organize messages into pages with current state and next action
-	const pages = useMemo(() => {
-		const result: {
-			currentState: {
-				url?: string
-				screenshot?: string
-				mousePosition?: string
-				consoleLogs?: string
-				messages: ClineMessage[] // messages up to and including the result
-			}
-			nextAction?: {
-				messages: ClineMessage[] // messages leading to next result
-			}
-		}[] = []
-
-		let currentStateMessages: ClineMessage[] = []
-		let nextActionMessages: ClineMessage[] = []
-
-		messages.forEach((message) => {
-			if (message.ask === "browser_action_launch" || message.say === "browser_action_launch") {
-				// Start first page
-				currentStateMessages = [message]
-			} else if (message.say === "browser_action_result") {
-				if (message.text === "") {
-					// first browser_action_result is an empty string that signals that session has started
-					return
-				}
-				// Complete current state
-				currentStateMessages.push(message)
-				const resultData = JSON.parse(message.text || "{}") as BrowserActionResult
-
-				// Add page with current state and previous next actions
-				result.push({
-					currentState: {
-						url: resultData.currentUrl,
-						screenshot: resultData.screenshot,
-						mousePosition: resultData.currentMousePosition,
-						consoleLogs: resultData.logs,
-						messages: [...currentStateMessages],
-					},
-					nextAction:
-						nextActionMessages.length > 0
-							? {
-									messages: [...nextActionMessages],
-								}
-							: undefined,
-				})
-
-				// Reset for next page
-				currentStateMessages = []
-				nextActionMessages = []
-			} else if (message.say === "api_req_started" || message.say === "text" || message.say === "browser_action") {
-				// These messages lead to the next result, so they should always go in nextActionMessages
-				nextActionMessages.push(message)
-			} else {
-				// Any other message types
-				currentStateMessages.push(message)
-			}
-		})
-
-		// Add incomplete page if exists
-		if (currentStateMessages.length > 0 || nextActionMessages.length > 0) {
-			result.push({
-				currentState: {
-					messages: [...currentStateMessages],
-				},
-				nextAction:
-					nextActionMessages.length > 0
-						? {
-								messages: [...nextActionMessages],
-							}
-						: undefined,
-			})
-		}
-
-		return result
-	}, [messages])
-
-	// Auto-advance to latest page
-	const [currentPageIndex, setCurrentPageIndex] = useState(0)
-	useEffect(() => {
-		setCurrentPageIndex(pages.length - 1)
-	}, [pages.length])
-
-	// Get initial URL from launch message
-	const initialUrl = useMemo(() => {
-		const launchMessage = messages.find((m) => m.ask === "browser_action_launch" || m.say === "browser_action_launch")
-		return launchMessage?.text || ""
-	}, [messages])
+		// Ensure pages is populated before checking messages
+		return isLast && pages.length > 0 && messages.some((m) => m.say === "browser_action_result") && !isLastApiReqInterrupted // after user approves, browser_action_result with "" is sent to indicate that the session has started
+	}, [isLast, messages, pages, isLastApiReqInterrupted]) // Added pages dependency
 
 	const isAutoApproved = useMemo(() => {
 		const launchMessage = messages.find((m) => m.ask === "browser_action_launch" || m.say === "browser_action_launch")
@@ -235,52 +151,12 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 	// 	return lastCheckpointMessage?.ts
 	// }, [messages])
 
-	// Find the latest available URL and screenshot
-	const latestState = useMemo(() => {
-		for (let i = pages.length - 1; i >= 0; i--) {
-			const page = pages[i]
-			if (page.currentState.url || page.currentState.screenshot) {
-				return {
-					url: page.currentState.url,
-					mousePosition: page.currentState.mousePosition,
-					consoleLogs: page.currentState.consoleLogs,
-					screenshot: page.currentState.screenshot,
-				}
-			}
-		}
-		return {
-			url: undefined,
-			mousePosition: undefined,
-			consoleLogs: undefined,
-			screenshot: undefined,
-		}
-	}, [pages])
-
-	const currentPage = pages[currentPageIndex]
-	const isLastPage = currentPageIndex === pages.length - 1
-
-	const defaultMousePosition = `${browserSettings.viewport.width * 0.7},${browserSettings.viewport.height * 0.5}`
-
-	// Use latest state if we're on the last page and don't have a state yet
-	const displayState = isLastPage
-		? {
-				url: currentPage?.currentState.url || latestState.url || initialUrl,
-				mousePosition: currentPage?.currentState.mousePosition || latestState.mousePosition || defaultMousePosition,
-				consoleLogs: currentPage?.currentState.consoleLogs,
-				screenshot: currentPage?.currentState.screenshot || latestState.screenshot,
-			}
-		: {
-				url: currentPage?.currentState.url || initialUrl,
-				mousePosition: currentPage?.currentState.mousePosition || defaultMousePosition,
-				consoleLogs: currentPage?.currentState.consoleLogs,
-				screenshot: currentPage?.currentState.screenshot,
-			}
-
 	const [actionContent, { height: actionHeight }] = useSize(
 		<div>
 			{currentPage?.nextAction?.messages.map((message) => (
 				<BrowserSessionRowContent key={message.ts} {...props} message={message} setMaxActionHeight={setMaxActionHeight} />
 			))}
+			{/* Use initialUrl from hook */}
 			{!isBrowsing && messages.some((m) => m.say === "browser_action_result") && currentPageIndex === 0 && (
 				<BrowserActionBox action={"launch"} text={initialUrl} />
 			)}
@@ -314,7 +190,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 		return undefined
 	}, [isBrowsing, currentPage?.nextAction?.messages])
 
-	// Use latest click position while browsing, otherwise use display state
+	// Use latest click position while browsing, otherwise use display state from hook
 	const mousePosition = isBrowsing ? latestClickPosition || displayState.mousePosition : displayState.mousePosition
 
 	// let shouldShowCheckpoints = true
@@ -360,10 +236,10 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 							borderRadius: "4px",
 							padding: "3px 5px",
 							minWidth: 0,
-							color: displayState.url ? "var(--vscode-input-foreground)" : "var(--vscode-descriptionForeground)",
+							color: displayState.url ? "var(--vscode-input-foreground)" : "var(--vscode-descriptionForeground)", // Use displayState from hook
 							fontSize: "12px",
 						}}>
-						<div style={urlTextStyle}>{displayState.url || "http"}</div>
+						<div style={urlTextStyle}>{displayState.url || "http"}</div> {/* Use displayState from hook */}
 					</div>
 					<BrowserSettingsMenu />
 				</div>
@@ -376,6 +252,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 						position: "relative",
 						backgroundColor: "var(--vscode-input-background)",
 					}}>
+					{/* Use displayState from hook */}
 					{displayState.screenshot ? (
 						<img
 							src={displayState.screenshot}
@@ -393,12 +270,13 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 							<span className="codicon codicon-globe" style={noScreenshotIconStyle} />
 						</div>
 					)}
+					{/* Use displayState from hook */}
 					{displayState.mousePosition && (
 						<BrowserCursor
 							style={{
 								position: "absolute",
-								top: `${(parseInt(mousePosition.split(",")[1]) / browserSettings.viewport.height) * 100}%`,
-								left: `${(parseInt(mousePosition.split(",")[0]) / browserSettings.viewport.width) * 100}%`,
+								top: `${(parseInt(mousePosition.split(",")[1]) / browserSettings.viewport.height) * 100}%`, // mousePosition calculated above uses displayState
+								left: `${(parseInt(mousePosition.split(",")[0]) / browserSettings.viewport.width) * 100}%`, // mousePosition calculated above uses displayState
 								transition: "top 0.3s ease-out, left 0.3s ease-out",
 							}}
 						/>
@@ -423,6 +301,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 						<span style={consoleLogsTextStyle}>Console Logs</span>
 					</div>
 					{consoleLogsExpanded && (
+						/* Use displayState from hook */
 						<CodeBlock source={`${"```"}shell\n${displayState.consoleLogs || "(No new logs)"}\n${"```"}`} />
 					)}
 				</div>
@@ -432,6 +311,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 			<div style={{ minHeight: maxActionHeight }}>{actionContent}</div>
 
 			{/* Pagination moved to bottom */}
+			{/* Use pages, currentPageIndex, setCurrentPageIndex from hook */}
 			{pages.length > 1 && (
 				<div style={paginationContainerStyle}>
 					<div>
@@ -440,12 +320,16 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 					<div style={paginationButtonGroupStyle}>
 						<VSCodeButton
 							disabled={currentPageIndex === 0 || isBrowsing}
-							onClick={() => setCurrentPageIndex((i) => i - 1)}>
+							onClick={() => setCurrentPageIndex(currentPageIndex - 1)}>
+							{" "}
+							{/* Simplified update */}
 							Previous
 						</VSCodeButton>
 						<VSCodeButton
-							disabled={currentPageIndex === pages.length - 1 || isBrowsing}
-							onClick={() => setCurrentPageIndex((i) => i + 1)}>
+							disabled={isLastPage || isBrowsing} // Use isLastPage from hook
+							onClick={() => setCurrentPageIndex(currentPageIndex + 1)}>
+							{" "}
+							{/* Simplified update */}
 							Next
 						</VSCodeButton>
 					</div>
@@ -476,7 +360,7 @@ interface BrowserSessionRowContentProps extends Omit<BrowserSessionRowProps, "me
 }
 
 const BrowserSessionRowContent = ({
-	message,
+	message, // Add explicit type here
 	isExpanded,
 	onToggleExpand,
 	lastModifiedMessage,
