@@ -34,6 +34,7 @@ export interface ApiHandlerOptions {
 	liteLlmUsePromptCache?: boolean
 	anthropicBaseUrl?: string
 	openRouterApiKey?: string
+	openRouterBaseUrl?: string // Add the missing field here
 	openRouterModelId?: string
 	openRouterModelInfo?: ModelInfo
 	openRouterProviderSorting?: string

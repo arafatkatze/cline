@@ -59,6 +59,7 @@ import VSCodeButtonLink from "@/components/common/VSCodeButtonLink"
 import OpenRouterModelPicker, { ModelDescriptionMarkdown, OPENROUTER_MODEL_PICKER_Z_INDEX } from "./OpenRouterModelPicker"
 import { ClineAccountInfoCard } from "./ClineAccountInfoCard"
 import RequestyModelPicker from "./RequestyModelPicker"
+import { useOpenRouterKeyInfo } from "../ui/hooks/useOpenRouterKeyInfo" // Import the new hook
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
@@ -67,12 +68,47 @@ interface ApiOptionsProps {
 	isPopup?: boolean
 }
 
+// Component to display OpenRouter API key balance
+const OpenRouterBalanceDisplay = ({ apiKey, baseUrl }: { apiKey: string; baseUrl?: string }) => {
+	const { data: keyInfo, isLoading, error } = useOpenRouterKeyInfo(apiKey, baseUrl)
+
+	if (isLoading) {
+		debugger
+		return <span style={{ fontSize: "12px", color: "var(--vscode-descriptionForeground)" }}>Loading...</span>
+	}
+	debugger
+
+	if (error || !keyInfo || keyInfo.limit === null) {
+		// Don't show anything if there's an error, no info, or no limit set
+		return null
+	}
+
+	// Calculate remaining balance
+	const remainingBalance = keyInfo.limit - keyInfo.usage
+	const formattedBalance = remainingBalance.toLocaleString("en-US", {
+		style: "currency",
+		currency: "USD",
+		minimumFractionDigits: 2,
+		maximumFractionDigits: 4, // Show more precision if available
+	})
+	debugger
+	return (
+		<VSCodeLink
+			href="https://openrouter.ai/settings/keys"
+			title={`Remaining balance: ${formattedBalance}\nLimit: ${keyInfo.limit.toLocaleString("en-US", { style: "currency", currency: "USD" })}\nUsage: ${keyInfo.usage.toLocaleString("en-US", { style: "currency", currency: "USD" })}`}
+			style={{ fontSize: "12px", textDecoration: "none" }}>
+			Balance: {formattedBalance}
+		</VSCodeLink>
+	)
+}
+
 // This is necessary to ensure dropdown opens downward, important for when this is used in popup
 const DROPDOWN_Z_INDEX = OPENROUTER_MODEL_PICKER_Z_INDEX + 2 // Higher than the OpenRouterModelPicker's and ModelSelectorTooltip's z-index
 
-export const DropdownContainer = styled.div<{ zIndex?: number }>`
+// Use a transient prop ($zIndex) for styled-components v5+ to prevent it from leaking to the DOM
+export const DropdownContainer = styled.div<{ $zIndex?: number }>`
 	position: relative;
-	z-index: ${(props) => props.zIndex || DROPDOWN_Z_INDEX};
+	z-index: ${(props) => props.$zIndex || DROPDOWN_Z_INDEX};
 
 	// Force dropdowns to open downward
 	& vscode-dropdown::part(listbox) {
@@ -518,7 +554,17 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						type="password"
 						onInput={handleInputChange("openRouterApiKey")}
 						placeholder="Enter API Key...">
-						<span style={{ fontWeight: 500 }}>OpenRouter API Key</span>
+						{/* Wrap label and balance display in a flex container */}
+						<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
+							<span style={{ fontWeight: 500 }}>OpenRouter API Key</span>
+							{/* Conditionally render the balance display */}
+							{apiConfiguration?.openRouterApiKey && (
+								<OpenRouterBalanceDisplay
+									apiKey={apiConfiguration.openRouterApiKey}
+									baseUrl={apiConfiguration.openRouterBaseUrl} // Pass base URL if available
+								/>
+							)}
+						</div>
 					</VSCodeTextField>
 					{!apiConfiguration?.openRouterApiKey && (
 						<VSCodeButtonLink
@@ -602,7 +648,8 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							</VSCodeTextField>
 						</>
 					)}
-					<DropdownContainer zIndex={DROPDOWN_Z_INDEX - 1} className="dropdown-container">
+					{/* Pass zIndex as a transient prop */}
+					<DropdownContainer $zIndex={DROPDOWN_Z_INDEX - 1} className="dropdown-container">
 						<label htmlFor="aws-region-dropdown">
 							<span style={{ fontWeight: 500 }}>AWS Region</span>
 						</label>
@@ -730,7 +777,8 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						placeholder="Enter Project ID...">
 						<span style={{ fontWeight: 500 }}>Google Cloud Project ID</span>
 					</VSCodeTextField>
-					<DropdownContainer zIndex={DROPDOWN_Z_INDEX - 1} className="dropdown-container">
+					{/* Pass zIndex as a transient prop */}
+					<DropdownContainer $zIndex={DROPDOWN_Z_INDEX - 1} className="dropdown-container">
 						<label htmlFor="vertex-region-dropdown">
 							<span style={{ fontWeight: 500 }}>Google Cloud Region</span>
 						</label>
@@ -1091,7 +1139,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 
 			{selectedProvider === "vscode-lm" && (
 				<div>
-					<DropdownContainer zIndex={DROPDOWN_Z_INDEX - 2} className="dropdown-container">
+					<DropdownContainer className="dropdown-container">
 						<label htmlFor="vscode-lm-model">
 							<span style={{ fontWeight: 500 }}>Language Model</span>
 						</label>
@@ -1467,7 +1515,8 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 
 					{providerSortingSelected && (
 						<div style={{ marginBottom: -6 }}>
-							<DropdownContainer className="dropdown-container" zIndex={OPENROUTER_MODEL_PICKER_Z_INDEX + 1}>
+							{/* Pass zIndex as a transient prop */}
+							<DropdownContainer className="dropdown-container" $zIndex={OPENROUTER_MODEL_PICKER_Z_INDEX + 1}>
 								<VSCodeDropdown
 									style={{ width: "100%", marginTop: 3 }}
 									value={apiConfiguration?.openRouterProviderSorting}
@@ -1508,7 +1557,8 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 				selectedProvider !== "requesty" &&
 				showModelOptions && (
 					<>
-						<DropdownContainer zIndex={DROPDOWN_Z_INDEX - 2} className="dropdown-container">
+						{/* Pass zIndex as a transient prop */}
+						<DropdownContainer $zIndex={DROPDOWN_Z_INDEX - 2} className="dropdown-container">
 							<label htmlFor="model-id">
 								<span style={{ fontWeight: 500 }}>Model</span>
 							</label>
@@ -1558,7 +1608,8 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 										<label htmlFor="reasoning-effort-dropdown">
 											<span style={{}}>Reasoning Effort</span>
 										</label>
-										<DropdownContainer className="dropdown-container" zIndex={DROPDOWN_Z_INDEX - 100}>
+										{/* Pass zIndex as a transient prop */}
+										<DropdownContainer className="dropdown-container" $zIndex={DROPDOWN_Z_INDEX - 100}>
 											<VSCodeDropdown
 												id="reasoning-effort-dropdown"
 												style={{ width: "100%", marginTop: 3 }}
@@ -1756,7 +1807,7 @@ export const ModelInfoView = ({
 	].filter(Boolean)
 
 	return (
-		<p
+		<div // Changed from <p> to <div> to fix nesting issues
 			style={{
 				fontSize: "12px",
 				marginTop: "2px",
@@ -1768,7 +1819,7 @@ export const ModelInfoView = ({
 					{index < infoItems.length - 1 && <br />}
 				</Fragment>
 			))}
-		</p>
+		</div> // Changed from </p> to </div>
 	)
 }
 

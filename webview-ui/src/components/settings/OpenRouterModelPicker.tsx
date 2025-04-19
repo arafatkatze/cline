@@ -432,13 +432,13 @@ const StyledMarkdown = styled.div`
 export const ModelDescriptionMarkdown = memo(
 	({
 		markdown,
-		key,
+		// key, // Removed key from destructuring
 		isExpanded,
 		setIsExpanded,
 		isPopup,
 	}: {
 		markdown?: string
-		key: string
+		// key: string, // Removed key from prop types
 		isExpanded: boolean
 		setIsExpanded: (isExpanded: boolean) => void
 		isPopup?: boolean
@@ -466,7 +466,8 @@ export const ModelDescriptionMarkdown = memo(
 		}, [reactContent, setIsExpanded])
 
 		return (
-			<StyledMarkdown key={key} style={{ display: "inline-block", marginBottom: 0 }}>
+			// Remove the explicit key={key} prop here, React handles it for the memoized component
+			<StyledMarkdown style={{ display: "inline-block", marginBottom: 0 }}>
 				<div
 					ref={textContainerRef}
 					style={{
